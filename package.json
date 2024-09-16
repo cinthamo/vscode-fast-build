@@ -1,0 +1,58 @@
+{
+	"name": "fast-build",
+	"displayName": "Fast Build",
+	"description": "Fast Build extension for VS Code",
+	"version": "0.0.1",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/cinthamo/vscode-fast-build.git"
+	},
+	"engines": {
+		"vscode": "^1.74.0"
+	},
+	"categories": [
+		"Other"
+	],
+	"activationEvents": [],
+	"main": "./out/extension.js",
+	"contributes": {
+		"commands": [
+			{
+				"command": "extension.build",
+				"title": "Fast Build: Build & Publish"
+			}
+		],
+		"menus": {
+			"explorer/context": [
+				{
+					"command": "extension.build",
+					"group": "navigation"
+				}
+			],
+			"editor/title/context": [
+				{
+					"command": "extension.build",
+					"group": "navigation"
+				}
+			]
+		}
+	},
+	"scripts": {
+		"vscode:prepublish": "npm run compile",
+		"compile": "tsc -p ./",
+		"lint": "eslint \"src/**/*.ts\"",
+		"watch": "tsc -watch -p ./"
+	},
+	"devDependencies": {
+		"@types/node": "^18.19.50",
+		"@types/vscode": "^1.73.0",
+		"@types/xml2js": "^0.4.14",
+		"@typescript-eslint/eslint-plugin": "^7.14.0",
+		"@typescript-eslint/parser": "^7.14.0",
+		"eslint": "^8.26.0",
+		"typescript": "^5.5.2"
+	},
+	"dependencies": {
+		"xml2js": "^0.6.2"
+	}
+}
