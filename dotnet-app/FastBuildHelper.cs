@@ -215,8 +215,11 @@ public static class FastBuildHelper
         ShowInformationMessage($"Found file: {csprojPath}.");
         ShowInformationMessage($"Creating FastBuild projects...");
 
+        string rootDirectory = Path.GetDirectoryName(fastBuildDirectory) ?? throw new ArgumentNullException(nameof(fastBuildDirectory));
         var processedFiles = new HashSet<string>();
-        var (fastbuildCsprojPath, needsToRestore) = await CsprojProcessor.CreateCsprojFastBuildFileAsync(csprojPath, processedFiles);
+        var (fastbuildCsprojPath, needsToRestore) = await CsprojProcessor.CreateCsprojFastBuildFileAsync(csprojPath, processedFiles, [
+            new Tuple<string, string>("$(GeneXusWorkingCopy)", rootDirectory) // TODO: don't hardcode this GeneXusWorkingCopy
+        ]);
         
         if (!string.IsNullOrEmpty(fastbuildCsprojPath))
         {

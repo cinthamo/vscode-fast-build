@@ -110,7 +110,7 @@ public static class BuildManager
                 string fileContent = File.ReadAllText(filePath);
                 foreach (var replacement in replacements)
                 {
-                    fileContent = fileContent.Replace($"{{{{{replacement.Item1}}}}}", replacement.Item2);
+                    fileContent = fileContent.Replace(replacement.Item1, replacement.Item2);
                 }
                 string destinationFile = Path.Combine(buildDirectory, fileName.Replace(".template", ""));
                 File.WriteAllText(destinationFile, fileContent);
@@ -137,7 +137,7 @@ public static class BuildManager
     public static async Task<bool> PublishCsproj(string command, List<string> files, string fastBuildDirectory, string assemblyName)
     {
         return await Publish(command, files, fastBuildDirectory, [
-            new Tuple<string, string>("PACKAGE", assemblyName)
+            new Tuple<string, string>("{{PACKAGE}}", assemblyName)
         ]);
     }
 }

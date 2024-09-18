@@ -9,7 +9,7 @@ public static class CsprojProcessor
     /// <param name="csprojFile">The path to the .csproj file.</param>
     /// <param name="processedFiles">A set of already processed files.</param>
     /// <returns>A tuple containing the path to the .fastbuild.csproj file and a boolean indicating whether the file was created or updated.</returns>
-    public static async Task<(string?, bool)> CreateCsprojFastBuildFileAsync(string csprojFile, HashSet<string> processedFiles)
+    public static async Task<(string?, bool)> CreateCsprojFastBuildFileAsync(string csprojFile, HashSet<string> processedFiles, IList<Tuple<string, string>> replacements)
     {
         // Check if the file has already been processed
         if (processedFiles.Contains(csprojFile))
@@ -53,15 +53,20 @@ public static class CsprojProcessor
 
             foreach (var projectReference in projectReferences)
             {
-                string? relativePath = projectReference.Attribute("Include")?.Value?.Replace("\\", "/");
-                if (!string.IsNullOrEmpty(relativePath))
+                string? projectReferencePath = projectReference.Attribute("Include")?.Value?.Replace("\\", "/");
+                if (!string.IsNullOrEmpty(projectReferencePath))
                 {
-                    string referencedCsprojPath = Path.GetFullPath(Path.Combine(projectDir, relativePath));
+                    foreach (var replacement in replacements)
+                    {
+                        projectReferencePath = projectReferencePath.Replace(replacement.Item1, replacement.Item2);
+                    }
+
+                    string referencedCsprojPath = Path.GetFullPath(Path.Combine(projectDir, projectReferencePath));
                     projectReference.SetAttributeValue("Include", referencedCsprojPath.Replace(".csproj", ".fastbuild.csproj"));
 
                     if (File.Exists(referencedCsprojPath) && !processedFiles.Contains(referencedCsprojPath))
                     {
-                        await CreateCsprojFastBuildFileAsync(referencedCsprojPath, processedFiles);
+                        await CreateCsprojFastBuildFileAsync(referencedCsprojPath, processedFiles, replacements);
                     }
                     else if (processedFiles.Contains(referencedCsprojPath))
                     {
