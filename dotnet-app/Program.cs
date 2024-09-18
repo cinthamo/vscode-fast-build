@@ -6,20 +6,20 @@ public class Program
     {
         if (args.Length == 0 || args.Length == 1 && args[0] == "--help")
         {
-            ShowInformationMessage("Usage: dotnet-app <path>");
+            ShowOutputMessage("Usage: dotnet-app <path>");
             return;
         }
 
         if (args.Length > 1)
         {
-            ShowInformationMessage("Error: Too many parameters provided.");
+            ShowErrorMessage("Too many parameters provided.");
             return;
         }
 
         string path = args[0];
         if (!File.Exists(path) && !Directory.Exists(path))
         {
-            ShowInformationMessage("Error: Invalid parameter. Please provide a valid file or directory path.");
+            ShowErrorMessage("Invalid parameter. Please provide a valid file or directory path.");
             return;
         }
 

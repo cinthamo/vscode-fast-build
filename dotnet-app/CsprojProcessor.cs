@@ -3,13 +3,19 @@ using static OutputHandler;
 
 public static class CsprojProcessor
 {
-    public static async Task<string?> CreateCsprojFastBuildFileAsync(string csprojFile, HashSet<string> processedFiles)
+    /// <summary>
+    /// Creates or updates a .fastbuild.csproj file for a given .csproj file.
+    /// </summary>
+    /// <param name="csprojFile">The path to the .csproj file.</param>
+    /// <param name="processedFiles">A set of already processed files.</param>
+    /// <returns>A tuple containing the path to the .fastbuild.csproj file and a boolean indicating whether the file was created or updated.</returns>
+    public static async Task<(string?, bool)> CreateCsprojFastBuildFileAsync(string csprojFile, HashSet<string> processedFiles)
     {
         // Check if the file has already been processed
         if (processedFiles.Contains(csprojFile))
         {
-            ShowInformationMessage($"Skipping already processed file: {csprojFile}");
-            return csprojFile.Replace(".csproj", ".fastbuild.csproj");
+            ShowDebugMessage($"Skipping already processed file: {csprojFile}");
+            return (csprojFile.Replace(".csproj", ".fastbuild.csproj"), false);
         }
 
         // Add the file to the processed set
@@ -21,18 +27,14 @@ public static class CsprojProcessor
             string fastbuildFile = csprojFile.Replace(".csproj", ".fastbuild.csproj");
 
             // Check if we need to create or update the .fastbuild file
-            bool shouldFastBuildFileBeCreatedOrUpdated = true ||
+            bool shouldFastBuildFileBeCreatedOrUpdated =
                 !File.Exists(fastbuildFile) // Create if it doesn't exist
                 || File.GetLastWriteTime(csprojFile) > File.GetLastWriteTime(fastbuildFile); // Update if .csproj is newer than .fastbuild
 
             if (shouldFastBuildFileBeCreatedOrUpdated)
-            {
-                ShowInformationMessage($"Updating FastBuild project for {csprojFile}");
-            }
+                ShowDebugMessage($"Updating FastBuild project for {csprojFile}");
             else
-            {
-                ShowInformationMessage($"Processing project references for {csprojFile}");
-            }
+                ShowDebugMessage($"Processing project references for {csprojFile}");
 
             // Read the .csproj file
             string csprojContent = await File.ReadAllTextAsync(csprojFile);
@@ -63,11 +65,11 @@ public static class CsprojProcessor
                     }
                     else if (processedFiles.Contains(referencedCsprojPath))
                     {
-                        ShowInformationMessage($"Skipping already processed reference: {referencedCsprojPath}");
+                        ShowDebugMessage($"Skipping already processed reference: {referencedCsprojPath}");
                     }
                     else
                     {
-                        ShowInformationMessage($"Referenced project does not exist: {referencedCsprojPath}");
+                        ShowErrorMessage($"Referenced project does not exist: {referencedCsprojPath}");
                     }
                 }
             }
@@ -79,12 +81,12 @@ public static class CsprojProcessor
                 ShowInformationMessage($"File has been saved to {fastbuildFile}");
             }
 
-            return fastbuildFile;
+            return (fastbuildFile, shouldFastBuildFileBeCreatedOrUpdated);
         }
         catch (Exception ex)
         {
             ShowErrorMessage($"Processing the .csproj file: {ex.Message}");
-            return null;
+            return (null, false);
         }
     }
 
@@ -108,7 +110,7 @@ public static class CsprojProcessor
         }
     }
 
-    public static string FindCsprojFileAsync(string filePath)
+    public static string? FindCsprojFileAsync(string filePath)
     {
         string dir = Path.GetDirectoryName(filePath) ?? throw new ArgumentNullException(nameof(filePath));
 
@@ -126,6 +128,6 @@ public static class CsprojProcessor
             dir = Path.GetDirectoryName(dir) ?? throw new ArgumentNullException(nameof(filePath));
         }
 
-        throw new FileNotFoundException("No .csproj file found in parent directories.");
+        return null;
     }
 }

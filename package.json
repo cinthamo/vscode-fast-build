@@ -13,6 +13,7 @@
 	"categories": [
 		"Other"
 	],
+	"publisher": "cinthamo",
 	"activationEvents": [],
 	"main": "./out/extension.js",
 	"contributes": {
@@ -24,6 +25,12 @@
 		],
 		"menus": {
 			"explorer/context": [
+				{
+					"command": "extension.build",
+					"group": "navigation"
+				}
+			],
+			"editor/context": [
 				{
 					"command": "extension.build",
 					"group": "navigation"

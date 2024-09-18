@@ -1,18 +1,59 @@
-using System;
 using System.Diagnostics;
-using System.IO;
-using System.Linq;
 using static OutputHandler;
 
 public static class BuildManager
 {
-    private static bool RunDotNet(string arguments, string workingDirectory)
+    private static async Task<bool> RunCommand(string command, string workingDirectory)
     {
+        ShowDebugMessage($"[RUN in {workingDirectory}] {command}");
+
+        string fileName;
+        string arguments;
+
+        // Check if the command starts with quotes for the file name
+        if (command.StartsWith('"'))
+        {
+            // Find the closing quote
+            var closingQuoteIndex = command.IndexOf('"', 1);
+            if (closingQuoteIndex == -1)
+            {
+                throw new ArgumentException("Invalid command format: Missing closing quote.");
+            }
+
+            // Extract the fileName between the quotes
+            fileName = command[1..closingQuoteIndex];
+
+            // The rest is arguments, if any
+            if (closingQuoteIndex + 1 < command.Length)
+            {
+                arguments = command[(closingQuoteIndex + 2)..]; // Skip the space after the closing quote
+            }
+            else
+            {
+                arguments = string.Empty;
+            }
+        }
+        else
+        {
+            // No quotes, so the first word is the file name, rest is arguments
+            var firstSpaceIndex = command.IndexOf(' ');
+            if (firstSpaceIndex == -1)
+            {
+                fileName = command;
+                arguments = string.Empty;
+            }
+            else
+            {
+                fileName = command[..firstSpaceIndex];
+                arguments = command[(firstSpaceIndex + 1)..];
+            }
+        }
+        
         Process buildProcess = new()
         {
             StartInfo = new ProcessStartInfo
             {
-                FileName = "dotnet",
+                FileName = fileName,
                 Arguments = arguments,
                 WorkingDirectory = workingDirectory,
                 RedirectStandardOutput = true,
@@ -22,58 +63,81 @@ public static class BuildManager
             }
         };
 
-        buildProcess.OutputDataReceived += (sender, e) => ShowInformationMessage(e.Data ?? "");
-        buildProcess.ErrorDataReceived += (sender, e) => ShowErrorMessage(e.Data ?? "");
+        buildProcess.OutputDataReceived += (sender, e) => { if (!string.IsNullOrEmpty(e.Data)) ShowOutputMessage(e.Data); };
+        buildProcess.ErrorDataReceived += (sender, e) => { if (!string.IsNullOrEmpty(e.Data)) ShowErrorMessage(e.Data); };
 
         buildProcess.Start();
         buildProcess.BeginOutputReadLine();
         buildProcess.BeginErrorReadLine();
-        buildProcess.WaitForExit();
+        await buildProcess.WaitForExitAsync();
         return buildProcess.ExitCode == 0;
     }
 
-    public static bool BuildCsproj(string csprojPath)
+    public static async Task<bool> BuildCMake(string command, string baseDirectory, string projectName, string cmakeDirectory)
     {
-        string csprojDir = Path.GetDirectoryName(csprojPath) ?? throw new ArgumentNullException(nameof(csprojPath));
-        return RunDotNet($"build \"{csprojPath}\"", csprojDir);
+        command = command
+            .Replace("{{PROJECT_NAME}}", projectName)
+            .Replace("{{CMAKE_DIRECTORY}}", cmakeDirectory);
+        return await RunCommand(command, baseDirectory);
     }
 
-    public static void Publish(string csprojPath)
+    public static async Task<bool> BuildCsproj(string csprojPath, bool needsToRestore)
     {
         string csprojDir = Path.GetDirectoryName(csprojPath) ?? throw new ArgumentNullException(nameof(csprojPath));
-        string? fastBuildDir = FindFastBuildDir(csprojDir);
+        return await RunCommand($"dotnet build \"{csprojPath}\" {(needsToRestore ? "" : "--no-restore")}", csprojDir);
+    }
 
-        if (fastBuildDir != null)
+    public static async Task<bool> Publish(string command, List<string> files, string fastBuildDirectory, IList<Tuple<string, string>> replacements)
+    {
+        string rootDirectory = Path.GetDirectoryName(fastBuildDirectory) ?? throw new ArgumentNullException(nameof(fastBuildDirectory));
+        command = command.Replace("{{ROOT_DIRECTORY}}", rootDirectory);
+
+        string buildDirectory = Path.Combine(fastBuildDirectory, "_Build");
+        if (!Directory.Exists(buildDirectory))
+            Directory.CreateDirectory(buildDirectory);
+
+        foreach (string fileName in files)
         {
-            string fastbuildCsproj = Path.Combine(fastBuildDir, ".fastbuild", "_Build", "FastBuild.msbuild");
-            if (File.Exists(fastbuildCsproj))
+            string filePath = Path.Combine(fastBuildDirectory, fileName);
+            if (!File.Exists(filePath))
             {
-                RunDotNet($"build \"{fastbuildCsproj}\" --no-restore", fastBuildDir);
+                ShowErrorMessage($"Publish file from config not found: {filePath}");
+                return false;
+            }
+
+            if (fileName.Contains(".template"))
+            {
+                string fileContent = File.ReadAllText(filePath);
+                foreach (var replacement in replacements)
+                {
+                    fileContent = fileContent.Replace($"{{{{{replacement.Item1}}}}}", replacement.Item2);
+                }
+                string destinationFile = Path.Combine(buildDirectory, fileName.Replace(".template", ""));
+                File.WriteAllText(destinationFile, fileContent);
             }
             else
             {
-                ShowErrorMessage($"FastBuild.msbuild not found in {fastBuildDir}/.fastbuild/_Build directory parent of {csprojPath}");
+                string destinationFile = Path.Combine(buildDirectory, fileName);
+                if (!File.Exists(destinationFile) || File.GetLastWriteTime(filePath) > File.GetLastWriteTime(destinationFile))
+                {
+                    File.Copy(filePath, destinationFile, true);
+                }
             }
         }
-        else
-        {
-            ShowErrorMessage($".fastbuild directory not found in current or ancestor directories of {csprojPath}");
-        }
+
+        return await RunCommand(command, buildDirectory);
     }
 
-    private static string? FindFastBuildDir(string dir)
+    public static async Task<bool> PublishCMake(string command, List<string> files, string fastBuildDirectory, string projectName)
     {
-        if (Directory.Exists(Path.Combine(dir, ".fastbuild")))
-        {
-            return dir;
-        }
+        command = command.Replace("{{PROJECT_NAME}}", projectName);
+        return await Publish(command, files, fastBuildDirectory, []);
+    }
 
-        string parentDir = Directory.GetParent(dir)?.FullName ?? string.Empty;
-        if (parentDir == null || parentDir == dir)
-        {
-            return null;
-        }
-
-        return FindFastBuildDir(parentDir);
+    public static async Task<bool> PublishCsproj(string command, List<string> files, string fastBuildDirectory, string assemblyName)
+    {
+        return await Publish(command, files, fastBuildDirectory, [
+            new Tuple<string, string>("PACKAGE", assemblyName)
+        ]);
     }
 }
