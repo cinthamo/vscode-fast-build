@@ -14,6 +14,7 @@
 		"Other"
 	],
 	"publisher": "cinthamo",
+	"icon": "images/fast-build.png",
 	"activationEvents": [],
 	"main": "./out/extension.js",
 	"contributes": {
