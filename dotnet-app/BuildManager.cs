@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using static OutputHandler;
 
 public static class BuildManager
@@ -91,6 +92,7 @@ public static class BuildManager
     {
         string rootDirectory = Path.GetDirectoryName(fastBuildDirectory) ?? throw new ArgumentNullException(nameof(fastBuildDirectory));
         command = command.Replace("{{ROOT_DIRECTORY}}", rootDirectory);
+        command = command.Replace("{{RUNTIME_IDENTIFIER}}", RuntimeInformation.RuntimeIdentifier);
 
         string buildDirectory = Path.Combine(fastBuildDirectory, "_Build");
         if (!Directory.Exists(buildDirectory))
