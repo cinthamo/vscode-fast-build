@@ -2,7 +2,7 @@
 	"name": "fast-build",
 	"displayName": "Fast Build",
 	"description": "Fast Build extension for VS Code",
-	"version": "0.0.1",
+	"version": "0.0.2",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/cinthamo/vscode-fast-build.git"
