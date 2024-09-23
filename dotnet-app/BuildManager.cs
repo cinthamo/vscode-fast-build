@@ -87,7 +87,7 @@ public static class BuildManager
         return await RunCommand($"dotnet build \"{csprojPath}\" {(needsToRestore ? "" : "--no-restore")}", csprojDir);
     }
 
-    public static async Task<bool> Publish(string command, List<string> files, string fastBuildDirectory, IList<Tuple<string, string>> replacements)
+    public static async Task<bool> CopyFilesAndRun(string command, List<string> files, string fastBuildDirectory, IList<Tuple<string, string>> replacements)
     {
         string rootDirectory = Path.GetDirectoryName(fastBuildDirectory) ?? throw new ArgumentNullException(nameof(fastBuildDirectory));
         command = command.Replace("{{ROOT_DIRECTORY}}", rootDirectory);
@@ -101,7 +101,7 @@ public static class BuildManager
             string filePath = Path.Combine(fastBuildDirectory, fileName);
             if (!File.Exists(filePath))
             {
-                ShowErrorMessage($"Publish file from config not found: {filePath}");
+                ShowErrorMessage($"File from config not found: {filePath}");
                 return false;
             }
 
@@ -131,12 +131,17 @@ public static class BuildManager
     public static async Task<bool> PublishCMake(string command, List<string> files, string fastBuildDirectory, string projectName)
     {
         command = command.Replace("{{PROJECT_NAME}}", projectName);
-        return await Publish(command, files, fastBuildDirectory, []);
+        return await CopyFilesAndRun(command, files, fastBuildDirectory, []);
+    }
+
+    public static async Task<bool> CheckCsproj(string command, List<string> files, string fastBuildDirectory)
+    {
+        return await CopyFilesAndRun(command, files, fastBuildDirectory, []);
     }
 
     public static async Task<bool> PublishCsproj(string command, List<string> files, string fastBuildDirectory, string assemblyName)
     {
-        return await Publish(command, files, fastBuildDirectory, [
+        return await CopyFilesAndRun(command, files, fastBuildDirectory, [
             new Tuple<string, string>("{{PACKAGE}}", assemblyName)
         ]);
     }

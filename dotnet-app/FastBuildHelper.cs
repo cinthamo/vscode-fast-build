@@ -5,7 +5,7 @@ public static class FastBuildHelper
 {
     private class Config
     {
-        public class Publish
+        public class CommandConfig
         {
             public List<string> Files { get; set; } = [];
             public string? Command { get; set; }
@@ -21,12 +21,13 @@ public static class FastBuildHelper
         public class CMakeConfig
         {
             public CMakeBuild? Build { get; set; }
-            public Publish? Publish { get; set; }
+            public CommandConfig? Publish { get; set; }
         }
 
         public class CsprojConfig
         {
-            public Publish? Publish { get; set; }
+            public CommandConfig? Check { get; set; }
+            public CommandConfig? Publish { get; set; }
         }
 
         public CMakeConfig? CMake { get; set; }
@@ -213,6 +214,11 @@ public static class FastBuildHelper
         }
         
         ShowInformationMessage($"Found file: {csprojPath}.");
+
+        var checkCommand = config.Check?.Command;
+        if (!string.IsNullOrEmpty(checkCommand) && !await BuildManager.CheckCsproj(checkCommand, config.Check?.Files ?? [], fastBuildDirectory))
+            return false;
+
         ShowInformationMessage($"Creating FastBuild projects...");
 
         string rootDirectory = Path.GetDirectoryName(fastBuildDirectory) ?? throw new ArgumentNullException(nameof(fastBuildDirectory));
