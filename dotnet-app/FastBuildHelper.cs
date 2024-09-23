@@ -223,25 +223,28 @@ public static class FastBuildHelper
 
         string rootDirectory = Path.GetDirectoryName(fastBuildDirectory) ?? throw new ArgumentNullException(nameof(fastBuildDirectory));
         var processedFiles = new HashSet<string>();
-        var (fastbuildCsprojPath, needsToRestore) = await CsprojProcessor.CreateCsprojFastBuildFileAsync(csprojPath, processedFiles, [
+        var (fastbuildCsprojPath, assemblyName, needsToRestore) = await CsprojProcessor.CreateCsprojFastBuildFileAsync(csprojPath, processedFiles, [
             new Tuple<string, string>("$(GeneXusWorkingCopy)", rootDirectory) // TODO: don't hardcode this GeneXusWorkingCopy
         ]);
         
-        if (!string.IsNullOrEmpty(fastbuildCsprojPath))
-        {
-            ShowInformationMessage($"Building: {fastbuildCsprojPath}...");
-            if (await BuildManager.BuildCsproj(fastbuildCsprojPath, needsToRestore))
-            {
-                string assemblyName = Path.GetFileNameWithoutExtension(csprojPath);
-                ShowInformationMessage($"Publishing: {assemblyName}...");
-                return await BuildManager.PublishCsproj(publishCommand, config.Publish.Files, fastBuildDirectory, assemblyName);
-            }
-        }
-        else
+        if (string.IsNullOrEmpty(fastbuildCsprojPath))
         {
             ShowErrorMessage("Failed to create .fastbuild.csproj file.");
+            return false;
         }
-        return false;
+
+        if (string.IsNullOrEmpty(assemblyName))
+        {
+            ShowErrorMessage($"Failed to get assembly name for {fastbuildCsprojPath}.");
+            return false;
+        }
+
+        ShowInformationMessage($"Building: {fastbuildCsprojPath}...");
+        if (!await BuildManager.BuildCsproj(fastbuildCsprojPath, needsToRestore))
+            return false;
+
+        ShowInformationMessage($"Publishing: {assemblyName}...");
+        return await BuildManager.PublishCsproj(publishCommand, config.Publish.Files, fastBuildDirectory, assemblyName);
     }
 
     private static JsonSerializerOptions JsonSerializerOptionsIgnoreCase => new()

@@ -8,14 +8,14 @@ public static class CsprojProcessor
     /// </summary>
     /// <param name="csprojFile">The path to the .csproj file.</param>
     /// <param name="processedFiles">A set of already processed files.</param>
-    /// <returns>A tuple containing the path to the .fastbuild.csproj file and a boolean indicating whether the file was created or updated.</returns>
-    public static async Task<(string?, bool)> CreateCsprojFastBuildFileAsync(string csprojFile, HashSet<string> processedFiles, IList<Tuple<string, string>> replacements)
+    /// <returns>A tuple containing the path to the .fastbuild.csproj file, the assemblyName, and a boolean indicating whether the file was created or updated.</returns>
+    public static async Task<(string?, string?, bool)> CreateCsprojFastBuildFileAsync(string csprojFile, HashSet<string> processedFiles, IList<Tuple<string, string>> replacements)
     {
         // Check if the file has already been processed
         if (processedFiles.Contains(csprojFile))
         {
             ShowDebugMessage($"Skipping already processed file: {csprojFile}");
-            return (csprojFile.Replace(".csproj", ".fastbuild.csproj"), false);
+            return (csprojFile.Replace(".csproj", ".fastbuild.csproj"), null, false);
         }
 
         // Add the file to the processed set
@@ -45,7 +45,7 @@ public static class CsprojProcessor
             var propertyGroupElements = parsedCsproj.Descendants("PropertyGroup");
 
             AddProperty(parsedCsproj, propertyGroupElements, "RootNamespace", projectName);
-            AddProperty(parsedCsproj, propertyGroupElements, "AssemblyName", projectName);
+            string assemblyName = AddProperty(parsedCsproj, propertyGroupElements, "AssemblyName", projectName);
 
             // Recursively process the referenced .csproj
             var projectReferences = parsedCsproj.Descendants("ProjectReference");
@@ -86,33 +86,27 @@ public static class CsprojProcessor
                 ShowInformationMessage($"File has been saved to {fastbuildFile}");
             }
 
-            return (fastbuildFile, shouldFastBuildFileBeCreatedOrUpdated);
+            return (fastbuildFile, assemblyName, shouldFastBuildFileBeCreatedOrUpdated);
         }
         catch (Exception ex)
         {
             ShowErrorMessage($"Processing the .csproj file: {ex.Message}");
-            return (null, false);
+            return (null, null, false);
         }
     }
 
-    private static void AddProperty(XDocument doc, IEnumerable<XElement> propertyGroups, string propertyName, string propertyValue)
+    private static string AddProperty(XDocument doc, IEnumerable<XElement> propertyGroups, string propertyName, string propertyValue)
     {
-        bool propertyExists = false;
-
         foreach (var propertyGroup in propertyGroups)
         {
-            if (propertyGroup.Element(propertyName) != null)
-            {
-                propertyExists = true;
-                break;
-            }
+            var currentValue = propertyGroup.Element(propertyName)?.Value;
+            if (currentValue != null)
+                return currentValue;
         }
 
-        if (!propertyExists)
-        {
-            var newProperty = new XElement(propertyName, propertyValue);
-            doc.Root?.Element("PropertyGroup")?.Add(newProperty);
-        }
+        var newProperty = new XElement(propertyName, propertyValue);
+        doc.Root?.Element("PropertyGroup")?.Add(newProperty);
+        return propertyValue;
     }
 
     public static string? FindCsprojFileAsync(string filePath)
