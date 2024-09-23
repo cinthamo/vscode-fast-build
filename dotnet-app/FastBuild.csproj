@@ -7,4 +7,8 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <Target Name="GenerateVersionFile" BeforeTargets="BeforeBuild">
+    <Exec Command="node GenerateVersionFile.js" />
+  </Target>
+
 </Project>

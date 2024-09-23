@@ -5,6 +5,8 @@ public static class FastBuildHelper
 {
     private class Config
     {
+        public string? Requires { get; set; }
+
         public class CommandConfig
         {
             public List<string> Files { get; set; } = [];
@@ -55,6 +57,23 @@ public static class FastBuildHelper
             return;
         }
         
+        if (config.Requires != null)
+        {
+            if (Version.TryParse(config.Requires, out Version? requiredVersion))
+            {
+                if (VersionInfo.Version < requiredVersion)
+                {
+                    ShowErrorMessage($"Current Fast Build version ({VersionInfo.Version}) is lower than the required version in your config ({requiredVersion}).");
+                    return;
+                }
+            }
+            else
+            {
+                ShowErrorMessage("Invalid required version format.");
+                return;
+            }
+        }
+
         if (path.StartsWith(fastBuildDirectory))
         {
             ShowErrorMessage("File is inside .fastbuild directory.");
