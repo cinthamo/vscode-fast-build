@@ -12,7 +12,7 @@ Note: It will open a Terminal to execute, if you want to use WSL in Windows open
 
 ## Installation
 
-Download the VSIX and install it in Visual Studio Code manually with option `Extensions: Install from VSIX...` from Command Pallete (Ctrl+Shift+P)
+Download the VSIX and install it in Visual Studio Code manually with option `Extensions: Install from VSIX...` from Command Palette (Ctrl+Shift+P)
 
 ## How does it work
 
