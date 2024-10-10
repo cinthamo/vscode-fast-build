@@ -82,10 +82,10 @@ public static class BuildManager
         return await RunCommand(command, baseDirectory);
     }
 
-    public static async Task<bool> BuildCsproj(string csprojPath, bool needsToRestore)
+    public static async Task<bool> BuildCsproj(string csprojPath, bool anyCsprojChanged)
     {
         string csprojDir = Path.GetDirectoryName(csprojPath) ?? throw new ArgumentNullException(nameof(csprojPath));
-        return await RunCommand($"dotnet build \"{csprojPath}\" {(needsToRestore ? "" : "--no-restore")}", csprojDir);
+        return await RunCommand($"dotnet msbuild \"{csprojPath}\" \"-t:{(anyCsprojChanged ? "Restore;" : "")}Build;Pack\"", csprojDir);
     }
 
     public static async Task<bool> CopyFilesAndRun(string command, List<string> files, string fastBuildDirectory, IList<Tuple<string, string>> replacements)
