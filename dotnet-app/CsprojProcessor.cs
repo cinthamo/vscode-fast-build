@@ -8,7 +8,7 @@ public static class CsprojProcessor
     /// </summary>
     /// <param name="csprojFile">The path to the .csproj file.</param>
     /// <param name="processedFiles">A set of already processed files.</param>
-    /// <returns>A tuple containing the path to the .fastbuild.csproj file, the assemblyName, and a boolean indicating whether the file was created or updated.</returns>
+    /// <returns>A tuple containing the path to the .fastbuild.csproj file, the PackageId, and a boolean indicating whether the file was created or updated.</returns>
     public static async Task<(string?, string?, bool)> CreateCsprojFastBuildFileAsync(string csprojFile, HashSet<string> processedFiles, IList<Tuple<string, string>> replacements)
     {
         // Check if the file has already been processed
@@ -42,10 +42,10 @@ public static class CsprojProcessor
 
             // Add the RootNamespace and AssemblyName to the project if they don't exist
             string projectName = Path.GetFileNameWithoutExtension(csprojFile);
-            var propertyGroupElements = parsedCsproj.Descendants("PropertyGroup");
 
-            AddProperty(parsedCsproj, propertyGroupElements, "RootNamespace", projectName);
-            string assemblyName = AddProperty(parsedCsproj, propertyGroupElements, "AssemblyName", projectName);
+            AddProperty(parsedCsproj, "RootNamespace", projectName);
+            string packageId = AddProperty(parsedCsproj, "AssemblyName", projectName);
+            packageId = GetProperty(parsedCsproj, "PackageId") ?? packageId;
 
             // Recursively process the referenced .csproj
             var projectReferences = parsedCsproj.Descendants("ProjectReference");
@@ -86,7 +86,7 @@ public static class CsprojProcessor
                 ShowInformationMessage($"File has been saved to {fastbuildFile}");
             }
 
-            return (fastbuildFile, assemblyName, shouldFastBuildFileBeCreatedOrUpdated);
+            return (fastbuildFile, packageId, shouldFastBuildFileBeCreatedOrUpdated);
         }
         catch (Exception ex)
         {
@@ -95,14 +95,23 @@ public static class CsprojProcessor
         }
     }
 
-    private static string AddProperty(XDocument doc, IEnumerable<XElement> propertyGroups, string propertyName, string propertyValue)
+    private static string? GetProperty(XDocument doc, string propertyName)
     {
+        var propertyGroups = doc.Descendants("PropertyGroup");
         foreach (var propertyGroup in propertyGroups)
         {
             var currentValue = propertyGroup.Element(propertyName)?.Value;
             if (currentValue != null)
                 return currentValue;
         }
+        return null;
+    }
+
+    private static string AddProperty(XDocument doc, string propertyName, string propertyValue)
+    {
+        var currentValue = GetProperty(doc, propertyName);
+        if (currentValue != null)
+            return currentValue;
 
         if (doc.Root == null)
             throw new ArgumentNullException(nameof(doc));

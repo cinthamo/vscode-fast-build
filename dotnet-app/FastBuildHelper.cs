@@ -242,7 +242,7 @@ public static class FastBuildHelper
 
         string rootDirectory = Path.GetDirectoryName(fastBuildDirectory) ?? throw new ArgumentNullException(nameof(fastBuildDirectory));
         var processedFiles = new HashSet<string>();
-        var (fastbuildCsprojPath, assemblyName, needsToRestore) = await CsprojProcessor.CreateCsprojFastBuildFileAsync(csprojPath, processedFiles, [
+        var (fastbuildCsprojPath, packageId, anyCsprojChanged) = await CsprojProcessor.CreateCsprojFastBuildFileAsync(csprojPath, processedFiles, [
             new Tuple<string, string>("$(GeneXusWorkingCopy)", rootDirectory) // TODO: don't hardcode this GeneXusWorkingCopy
         ]);
         
@@ -252,18 +252,18 @@ public static class FastBuildHelper
             return false;
         }
 
-        if (string.IsNullOrEmpty(assemblyName))
+        if (string.IsNullOrEmpty(packageId))
         {
-            ShowErrorMessage($"Failed to get assembly name for {fastbuildCsprojPath}.");
+            ShowErrorMessage($"Failed to get package id for {fastbuildCsprojPath}.");
             return false;
         }
 
         ShowInformationMessage($"Building: {fastbuildCsprojPath}...");
-        if (!await BuildManager.BuildCsproj(fastbuildCsprojPath, needsToRestore))
+        if (!await BuildManager.BuildCsproj(fastbuildCsprojPath, anyCsprojChanged))
             return false;
 
-        ShowInformationMessage($"Publishing: {assemblyName}...");
-        return await BuildManager.PublishCsproj(publishCommand, config.Publish.Files, fastBuildDirectory, assemblyName);
+        ShowInformationMessage($"Publishing: {packageId}...");
+        return await BuildManager.PublishCsproj(publishCommand, config.Publish.Files, fastBuildDirectory, packageId);
     }
 
     private static JsonSerializerOptions JsonSerializerOptionsIgnoreCase => new()
