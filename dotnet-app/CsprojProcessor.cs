@@ -104,8 +104,17 @@ public static class CsprojProcessor
                 return currentValue;
         }
 
+        if (doc.Root == null)
+            throw new ArgumentNullException(nameof(doc));
+
         var newProperty = new XElement(propertyName, propertyValue);
-        doc.Root?.Element("PropertyGroup")?.Add(newProperty);
+        var firstPropertyGroup = doc.Root.Element("PropertyGroup");
+        if (firstPropertyGroup == null)
+        {
+            firstPropertyGroup = new XElement("PropertyGroup");
+            doc.Root.Add(firstPropertyGroup);
+        }
+        firstPropertyGroup.Add(newProperty);
         return propertyValue;
     }
 
