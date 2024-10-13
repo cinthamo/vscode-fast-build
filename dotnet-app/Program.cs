@@ -1,10 +1,12 @@
 ﻿using static OutputHandler;
 
-public class Program
+namespace FastBuild;
+
+public static class Program
 {
     public static void Main(string[] args)
     {
-        if (args.Length == 0 || args.Length == 1 && args[0] == "--help")
+        if (args.Length == 0 || args is ["--help"])
         {
             ShowOutputMessage("Usage: dotnet-app <path>");
             return;

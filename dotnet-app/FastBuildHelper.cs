@@ -1,4 +1,5 @@
 using System.Text.Json;
+using FastBuild;
 using static OutputHandler;
 
 public static class FastBuildHelper
@@ -225,7 +226,7 @@ public static class FastBuildHelper
             return false;
         }
 
-        string? csprojPath = CsprojProcessor.FindCsprojFileAsync(path);
+        string? csprojPath = PathFinder.FindCsprojFileAsync(path);
         if (string.IsNullOrEmpty(csprojPath))
         {
             ShowErrorMessage("No .csproj file found in parent directories.");
@@ -238,11 +239,10 @@ public static class FastBuildHelper
         if (!string.IsNullOrEmpty(checkCommand) && !await BuildManager.CheckCsproj(checkCommand, config.Check?.Files ?? [], fastBuildDirectory))
             return false;
 
-        ShowInformationMessage($"Creating FastBuild projects...");
+        ShowInformationMessage("Creating FastBuild projects...");
 
         string rootDirectory = Path.GetDirectoryName(fastBuildDirectory) ?? throw new ArgumentNullException(nameof(fastBuildDirectory));
-        var processedFiles = new HashSet<string>();
-        var (fastbuildCsprojPath, packageId, anyCsprojChanged) = await CsprojProcessor.CreateCsprojFastBuildFileAsync(csprojPath, processedFiles, [
+        var (fastbuildCsprojPath, packageId, anyCsprojChanged) = await CsprojProcessor.CreateCsprojFastBuildFileAsync(csprojPath, [
             new Tuple<string, string>("$(GeneXusWorkingCopy)", rootDirectory) // TODO: don't hardcode this GeneXusWorkingCopy
         ]);
         
@@ -273,7 +273,7 @@ public static class FastBuildHelper
 
     private static Config? ReadConfig(string path, out string? fastBuildDirectory)
     {
-        fastBuildDirectory = FindFastBuildDirectory(path);
+        fastBuildDirectory = PathFinder.FindFastBuildDirectory(path);
         if (string.IsNullOrEmpty(fastBuildDirectory))
             return null;
 
@@ -283,20 +283,5 @@ public static class FastBuildHelper
 
         string configJson = File.ReadAllText(configFilePath);
         return JsonSerializer.Deserialize<Config>(configJson, JsonSerializerOptionsIgnoreCase);
-    }
-
-    private static string? FindFastBuildDirectory(string directory)
-    {
-        string? dir = directory;
-        while (dir != null)
-        {
-            string fastBuildDirectory = Path.Combine(dir, ".fastbuild");
-            if (Directory.Exists(fastBuildDirectory))
-                return fastBuildDirectory;
-
-            dir = Directory.GetParent(dir)?.FullName;
-        }
-
-        return null;
     }
 }
