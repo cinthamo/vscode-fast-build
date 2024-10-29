@@ -20,25 +20,22 @@ public static class CsprojProcessor
 
         IDictionary<string, string>? globalJsonSdkVersions = null;
         string? projectDir = Path.GetDirectoryName(csprojPath);
-        if (projectDir != null)
+        string? globalJsonPath = projectDir == null ? null : PathFinder.FindGlobalJsonFileAsync(projectDir);
+        if (globalJsonPath != null)
         {
-            string? globalJsonPath = PathFinder.FindGlobalJsonFileAsync(projectDir);
-            if (globalJsonPath != null)
-            {
-                string globalJsonContent = await File.ReadAllTextAsync(globalJsonPath);
-                JsonDocument globalJsonDocument = JsonDocument.Parse(globalJsonContent);
-                globalJsonSdkVersions = globalJsonDocument.RootElement.GetProperty("msbuild-sdks")
-                    .EnumerateObject()
-                    .Where(p => p.Value.GetString() != null)
-                    .ToDictionary(p => p.Name, p => p.Value.GetString()!);
-            }
+            string globalJsonContent = await File.ReadAllTextAsync(globalJsonPath);
+            JsonDocument globalJsonDocument = JsonDocument.Parse(globalJsonContent);
+            globalJsonSdkVersions = globalJsonDocument.RootElement.GetProperty("msbuild-sdks")
+                .EnumerateObject()
+                .Where(p => p.Value.GetString() != null)
+                .ToDictionary(p => p.Name.ToLower(), p => p.Value.GetString()!);
         }
 
-        var (packageId, wasChanged) = await CreateCsprojFastBuildFileAsync(csprojPath, new HashSet<string>(), fastbuildSdkDirectory, fastbuildCsprojFile, globalJsonSdkVersions, false, replacements);
+        var (packageId, wasChanged) = await CreateCsprojFastBuildFileAsync(csprojPath, new HashSet<string>(), fastbuildSdkDirectory, fastbuildCsprojFile, globalJsonPath, globalJsonSdkVersions, false, replacements);
         return (fastbuildCsprojFile, packageId, wasChanged);
     }
 
-    private static async Task<(string?, bool)> CreateCsprojFastBuildFileAsync(string csprojPath, HashSet<string> processedFiles, string fastbuildSdkDirectory, string fastbuildCsprojFile, IDictionary<string, string>? globalJsonSdkVersions, bool isSdk, IList<Tuple<string, string>> replacements)
+    private static async Task<(string?, bool)> CreateCsprojFastBuildFileAsync(string csprojPath, HashSet<string> processedFiles, string fastbuildSdkDirectory, string fastbuildCsprojFile, string? globalJsonPath, IDictionary<string, string>? globalJsonSdkVersions, bool isSdk, IList<Tuple<string, string>> replacements)
     {
         // Check if the file has already been processed
         if (processedFiles.Contains(csprojPath))
@@ -75,8 +72,8 @@ public static class CsprojProcessor
                 if (globalJsonSdkVersions == null)
                     throw new Exception("global.json file not found");
                
-                if (!globalJsonSdkVersions.TryGetValue(sdk, out var sdkVersion))
-                    throw new Exception($"Version not found in global.json for {sdk}");
+                if (!globalJsonSdkVersions.TryGetValue(sdk.ToLower(), out var sdkVersion))
+                    throw new Exception($"Version not found for {sdk} in {globalJsonPath}");
 
                 string sdkPropsPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".nuget", "packages", sdk.ToLower(), sdkVersion, "Sdk", "Sdk.props");
                 if (!File.Exists(sdkPropsPath))
@@ -90,7 +87,7 @@ public static class CsprojProcessor
                 }
 
                 var fastBuildSdkPropsPath = Path.Combine(fastbuildSdkDirectory, $"{sdk}.fastbuild.props");
-                await CreateCsprojFastBuildFileAsync(sdkPropsPath, processedFiles, fastbuildSdkDirectory, fastBuildSdkPropsPath, globalJsonSdkVersions, true, replacements);
+                await CreateCsprojFastBuildFileAsync(sdkPropsPath, processedFiles, fastbuildSdkDirectory, fastBuildSdkPropsPath, globalJsonPath, globalJsonSdkVersions, true, replacements);
                 return fastBuildSdkPropsPath;
             }
 
@@ -165,7 +162,7 @@ public static class CsprojProcessor
 
                     if (File.Exists(referencedCsprojPath) && !processedFiles.Contains(referencedCsprojPath))
                     {
-                        await CreateCsprojFastBuildFileAsync(referencedCsprojPath, processedFiles, fastbuildSdkDirectory, referencedFastBuildCsprojPath, globalJsonSdkVersions, false, replacements);
+                        await CreateCsprojFastBuildFileAsync(referencedCsprojPath, processedFiles, fastbuildSdkDirectory, referencedFastBuildCsprojPath, globalJsonPath, globalJsonSdkVersions, false, replacements);
                     }
                     else if (processedFiles.Contains(referencedCsprojPath))
                     {
