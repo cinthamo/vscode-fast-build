@@ -80,7 +80,14 @@ public static class CsprojProcessor
 
                 string sdkPropsPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".nuget", "packages", sdk.ToLower(), sdkVersion, "Sdk", "Sdk.props");
                 if (!File.Exists(sdkPropsPath))
-                    throw new Exception($"Sdk.props file not found for SDK: {sdk} version {sdkVersion}");
+                {
+                    ShowDebugMessage($"File not found: {sdkPropsPath}, trying to restore it...");
+                    var fastBuildSdkCsprojPath = Path.Combine(fastbuildSdkDirectory, $"{sdk}.fastbuild.csproj");
+                    File.WriteAllText(fastBuildSdkCsprojPath, $"<Project Sdk=\"{sdk}\"><PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup></Project>");
+                    await BuildManager.RestoreCsproj(fastBuildSdkCsprojPath, fastbuildSdkDirectory);
+                    if (!File.Exists(sdkPropsPath))
+                        throw new Exception($"File not found: {sdkPropsPath}");
+                }
 
                 var fastBuildSdkPropsPath = Path.Combine(fastbuildSdkDirectory, $"{sdk}.fastbuild.props");
                 await CreateCsprojFastBuildFileAsync(sdkPropsPath, processedFiles, fastbuildSdkDirectory, fastBuildSdkPropsPath, globalJsonSdkVersions, true, replacements);

@@ -82,6 +82,11 @@ public static class BuildManager
         return await RunCommand(command, baseDirectory);
     }
 
+    public static async Task<bool> RestoreCsproj(string csprojPath, string baseDirectory)
+    {
+        return await RunCommand($"dotnet restore \"{csprojPath}\"", baseDirectory);
+    }
+
     public static async Task<bool> BuildCsproj(string csprojPath, bool anyCsprojChanged)
     {
         string csprojDir = Path.GetDirectoryName(csprojPath) ?? throw new ArgumentNullException(nameof(csprojPath));
