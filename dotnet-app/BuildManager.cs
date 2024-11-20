@@ -98,6 +98,10 @@ public static class BuildManager
         string rootDirectory = Path.GetDirectoryName(fastBuildDirectory) ?? throw new ArgumentNullException(nameof(fastBuildDirectory));
         command = command.Replace("{{ROOT_DIRECTORY}}", rootDirectory);
         command = command.Replace("{{RUNTIME_IDENTIFIER}}", RuntimeInformation.RuntimeIdentifier);
+        foreach (var replacement in replacements)
+        {
+            command = command.Replace(replacement.Item1, replacement.Item2);
+        }
 
         string buildDirectory = Path.Combine(fastBuildDirectory, "_Build");
         if (!Directory.Exists(buildDirectory))
