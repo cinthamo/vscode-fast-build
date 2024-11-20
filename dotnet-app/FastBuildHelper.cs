@@ -2,7 +2,7 @@ using System.Text.Json;
 using FastBuild;
 using static OutputHandler;
 
-public static class FastBuildHelper
+public static class FastBuildMain
 {
     private class Config
     {

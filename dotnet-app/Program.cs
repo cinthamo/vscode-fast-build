@@ -25,6 +25,6 @@ public static class Program
             return;
         }
 
-        FastBuildHelper.ProcessAsync(path).Wait();
+        FastBuildMain.ProcessAsync(path).Wait();
     }
 }
