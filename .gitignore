@@ -1,0 +1,10 @@
+dotnet-app/.idea/.idea.FastBuild/.idea
+dotnet-app/bin
+dotnet-app/obj
+node_modules
+out
+publish
+VersionInfo.cs
+package-lock.json
+*.vsix
+.DS_Store
