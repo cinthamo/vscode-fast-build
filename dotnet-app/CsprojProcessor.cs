@@ -25,10 +25,13 @@ public static class CsprojProcessor
         {
             string globalJsonContent = await File.ReadAllTextAsync(globalJsonPath);
             JsonDocument globalJsonDocument = JsonDocument.Parse(globalJsonContent);
-            globalJsonSdkVersions = globalJsonDocument.RootElement.GetProperty("msbuild-sdks")
-                .EnumerateObject()
-                .Where(p => p.Value.GetString() != null)
-                .ToDictionary(p => p.Name.ToLower(), p => p.Value.GetString()!);
+            if (globalJsonDocument.RootElement.TryGetProperty("msbuild-sdks", out JsonElement element))
+            {
+                globalJsonSdkVersions = element
+                    .EnumerateObject()
+                    .Where(p => p.Value.GetString() != null)
+                    .ToDictionary(p => p.Name.ToLower(), p => p.Value.GetString()!);
+            }
         }
 
         var (packageId, wasChanged) = await CreateCsprojFastBuildFileAsync(csprojPath, new HashSet<string>(), fastbuildSdkDirectory, fastbuildCsprojFile, globalJsonPath, globalJsonSdkVersions, false, replacements);
@@ -141,6 +144,12 @@ public static class CsprojProcessor
                 AddProperty(parsedCsproj, "RootNamespace", projectName);
                 string assemblyName = AddProperty(parsedCsproj, "AssemblyName", projectName);
                 packageId = GetProperty(parsedCsproj, "PackageId") ?? assemblyName;
+
+                // Apply performance optimizations
+                SetProperty(parsedCsproj, "TreatWarningsAsErrors", "false");
+                RemoveProperty(parsedCsproj, "ProduceReferenceAssembly");
+                SetProperty(parsedCsproj, "RestoreUseStaticGraphEvaluation", "true");
+                SetProperty(parsedCsproj, "IsPackable", "false");
             }
 
             // Recursively process the referenced .csproj
@@ -221,5 +230,41 @@ public static class CsprojProcessor
         }
         firstPropertyGroup.Add(newProperty);
         return propertyValue;
+    }
+
+    private static void SetProperty(XDocument doc, string propertyName, string propertyValue)
+    {
+        var propertyGroups = doc.Descendants("PropertyGroup");
+        foreach (var propertyGroup in propertyGroups)
+        {
+            var element = propertyGroup.Element(propertyName);
+            if (element != null)
+            {
+                element.Value = propertyValue;
+                return;
+            }
+        }
+        // If not found, add to first PropertyGroup
+        var firstPropertyGroup = doc.Root?.Element("PropertyGroup");
+        if (firstPropertyGroup == null)
+        {
+            firstPropertyGroup = new XElement("PropertyGroup");
+            doc.Root!.Add(firstPropertyGroup);
+        }
+        firstPropertyGroup.Add(new XElement(propertyName, propertyValue));
+    }
+
+    private static void RemoveProperty(XDocument doc, string propertyName)
+    {
+        var propertyGroups = doc.Descendants("PropertyGroup");
+        foreach (var propertyGroup in propertyGroups)
+        {
+            var element = propertyGroup.Element(propertyName);
+            if (element != null)
+            {
+                element.Remove();
+                break; // Remove only the first occurrence
+            }
+        }
     }
 }
