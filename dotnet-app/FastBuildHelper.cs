@@ -51,6 +51,8 @@ public static class FastBuildMain
             return;
         }
 
+        bool compatibilityMode = Environment.GetEnvironmentVariable("FASTBUILD_COMPATIBILITY_MODE") == "true";
+
         var config = ReadConfig(path, out string? fastBuildDirectory);
         if (fastBuildDirectory == null)
         {
@@ -93,7 +95,7 @@ public static class FastBuildMain
                 return;
         }
 
-        await BuildAndPublishCsproj(config, path, fastBuildDirectory);
+        await BuildAndPublishCsproj(config, path, fastBuildDirectory, compatibilityMode);
     }
 
     private static async Task<bool> BuildAndPublishCMake(Config.CMakeConfig? config, string path, string fastBuildDirectory)
@@ -217,7 +219,7 @@ public static class FastBuildMain
         return true;
     }
 
-    private static async Task<bool> BuildAndPublishCsproj(Config config, string path, string fastBuildDirectory)
+    private static async Task<bool> BuildAndPublishCsproj(Config config, string path, string fastBuildDirectory, bool compatibilityMode)
     {
         if (config.Dllcopy == null && config.Csproj?.Publish == null)
         {
@@ -243,7 +245,7 @@ public static class FastBuildMain
         string rootDirectory = Path.GetDirectoryName(fastBuildDirectory) ?? throw new ArgumentNullException(nameof(fastBuildDirectory));
         var (fastbuildCsprojPath, packageId, anyCsprojChanged) = await CsprojProcessor.CreateCsprojFastBuildFileAsync(csprojPath, [
             new Tuple<string, string>("$(GeneXusWorkingCopy)", rootDirectory) // TODO: don't hardcode this GeneXusWorkingCopy
-        ]);
+        ], compatibilityMode);
 
         if (string.IsNullOrEmpty(fastbuildCsprojPath))
         {
@@ -261,8 +263,8 @@ public static class FastBuildMain
         if (!await BuildManager.BuildCsproj(fastbuildCsprojPath, anyCsprojChanged))
             return false;
 
-        ShowDebugMessage($"Dllcopy config: {config.Dllcopy != null}");
-        if (config.Dllcopy != null && config.Dllcopy.Targets.Any())
+        ShowDebugMessage($"Dllcopy config: {config.Dllcopy != null}, compatibilityMode: {compatibilityMode}");
+        if (!compatibilityMode && config.Dllcopy != null && config.Dllcopy.Targets.Any())
         {
             string binDir = Path.Combine(Path.GetDirectoryName(csprojPath)!, "bin", "Debug");
             string sourceDll = Path.Combine(binDir, packageId + ".dll");

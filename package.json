@@ -18,6 +18,16 @@
 	"activationEvents": [],
 	"main": "./out/extension.js",
 	"contributes": {
+		"configuration": {
+			"title": "Fast Build",
+			"properties": {
+				"fastbuild.useCompatibilityMode": {
+					"type": "boolean",
+					"default": false,
+					"description": "Enable compatibility mode to work as 0.0.6; disables MSBuild optimizations, DLL copy, and path-finding changes."
+				}
+			}
+		},
 		"commands": [
 			{
 				"command": "extension.build",

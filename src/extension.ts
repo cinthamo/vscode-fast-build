@@ -9,6 +9,9 @@ let buildTerminal: vscode.Terminal | undefined;
 export function activate(context: vscode.ExtensionContext) {
     const buildCommand = vscode.commands.registerCommand('extension.build', async (uri: vscode.Uri) => {
         if (uri) {
+            const config = vscode.workspace.getConfiguration('fastbuild');
+            const useCompatibilityMode = config.get('useCompatibilityMode', false);
+
             let dotnetDllPath = path.join(__dirname, '..', 'publish', 'FastBuild.dll');
 
             // Check if the terminal exists and is still open if not, create a new one
@@ -38,6 +41,7 @@ export function activate(context: vscode.ExtensionContext) {
 
             buildTerminal.show(true);
             buildTerminal.sendText(isWindows ? "cls" : "clear"); // Clear previous output (use "cls" on Windows)
+            buildTerminal.sendText(isWindows ? `set FASTBUILD_COMPATIBILITY_MODE=${useCompatibilityMode}` : `export FASTBUILD_COMPATIBILITY_MODE=${useCompatibilityMode}`);
             buildTerminal.sendText(`dotnet exec "${fixWSLPath(dotnetDllPath)}" "${fixWSLPath(uri.fsPath)}"`);
         } else {
             vscode.window.showErrorMessage('No URI found for clicked item.');

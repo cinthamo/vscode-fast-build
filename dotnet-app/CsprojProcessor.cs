@@ -11,8 +11,9 @@ public static class CsprojProcessor
     /// </summary>
     /// <param name="csprojPath">The path to the .csproj file.</param>
     /// <param name="replacements">Variables to replace</param>
+    /// <param name="compatibilityMode">Whether to use compatibility mode (skip optimizations).</param>
     /// <returns>A tuple containing the path to the .fastbuild.csproj file, the PackageId, and a boolean indicating whether the file was created or updated.</returns>
-    public static async Task<(string?, string?, bool)> CreateCsprojFastBuildFileAsync(string csprojPath, IList<Tuple<string, string>> replacements)
+    public static async Task<(string?, string?, bool)> CreateCsprojFastBuildFileAsync(string csprojPath, IList<Tuple<string, string>> replacements, bool compatibilityMode)
     {
         string fastbuildSdkDirectory = Path.Combine(PathFinder.FindFastBuildDirectory(csprojPath)!, "_Sdk");
         Directory.CreateDirectory(fastbuildSdkDirectory);
@@ -34,11 +35,11 @@ public static class CsprojProcessor
             }
         }
 
-        var (packageId, wasChanged) = await CreateCsprojFastBuildFileAsync(csprojPath, new HashSet<string>(), fastbuildSdkDirectory, fastbuildCsprojFile, globalJsonPath, globalJsonSdkVersions, false, replacements);
+        var (packageId, wasChanged) = await CreateCsprojFastBuildFileAsync(csprojPath, new HashSet<string>(), fastbuildSdkDirectory, fastbuildCsprojFile, globalJsonPath, globalJsonSdkVersions, false, replacements, compatibilityMode);
         return (fastbuildCsprojFile, packageId, wasChanged);
     }
 
-    private static async Task<(string?, bool)> CreateCsprojFastBuildFileAsync(string csprojPath, HashSet<string> processedFiles, string fastbuildSdkDirectory, string fastbuildCsprojFile, string? globalJsonPath, IDictionary<string, string>? globalJsonSdkVersions, bool isSdk, IList<Tuple<string, string>> replacements)
+    private static async Task<(string?, bool)> CreateCsprojFastBuildFileAsync(string csprojPath, HashSet<string> processedFiles, string fastbuildSdkDirectory, string fastbuildCsprojFile, string? globalJsonPath, IDictionary<string, string>? globalJsonSdkVersions, bool isSdk, IList<Tuple<string, string>> replacements, bool compatibilityMode)
     {
         // Check if the file has already been processed
         if (processedFiles.Contains(csprojPath))
@@ -90,7 +91,7 @@ public static class CsprojProcessor
                 }
 
                 var fastBuildSdkPropsPath = Path.Combine(fastbuildSdkDirectory, $"{sdk}.fastbuild.props");
-                await CreateCsprojFastBuildFileAsync(sdkPropsPath, processedFiles, fastbuildSdkDirectory, fastBuildSdkPropsPath, globalJsonPath, globalJsonSdkVersions, true, replacements);
+                await CreateCsprojFastBuildFileAsync(sdkPropsPath, processedFiles, fastbuildSdkDirectory, fastBuildSdkPropsPath, globalJsonPath, globalJsonSdkVersions, true, replacements, compatibilityMode);
                 return fastBuildSdkPropsPath;
             }
 
@@ -146,10 +147,13 @@ public static class CsprojProcessor
                 packageId = GetProperty(parsedCsproj, "PackageId") ?? assemblyName;
 
                 // Apply performance optimizations
-                SetProperty(parsedCsproj, "TreatWarningsAsErrors", "false");
-                RemoveProperty(parsedCsproj, "ProduceReferenceAssembly");
-                SetProperty(parsedCsproj, "RestoreUseStaticGraphEvaluation", "true");
-                SetProperty(parsedCsproj, "IsPackable", "false");
+                if (!compatibilityMode)
+                {
+                    SetProperty(parsedCsproj, "TreatWarningsAsErrors", "false");
+                    RemoveProperty(parsedCsproj, "ProduceReferenceAssembly");
+                    SetProperty(parsedCsproj, "RestoreUseStaticGraphEvaluation", "true");
+                    SetProperty(parsedCsproj, "IsPackable", "false");
+                }
             }
 
             // Recursively process the referenced .csproj
@@ -171,7 +175,7 @@ public static class CsprojProcessor
 
                     if (File.Exists(referencedCsprojPath) && !processedFiles.Contains(referencedCsprojPath))
                     {
-                        await CreateCsprojFastBuildFileAsync(referencedCsprojPath, processedFiles, fastbuildSdkDirectory, referencedFastBuildCsprojPath, globalJsonPath, globalJsonSdkVersions, false, replacements);
+                        await CreateCsprojFastBuildFileAsync(referencedCsprojPath, processedFiles, fastbuildSdkDirectory, referencedFastBuildCsprojPath, globalJsonPath, globalJsonSdkVersions, false, replacements, compatibilityMode);
                     }
                     else if (processedFiles.Contains(referencedCsprojPath))
                     {
