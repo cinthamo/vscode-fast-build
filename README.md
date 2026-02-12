@@ -20,7 +20,7 @@ It has 2 modes
 
 - **CMake**: It index all the `CMakeLists.txt` files once or when one changes.  When a file is built it will check if it is on one of those and builds the necessary CMake projects. Then it will copy the final libraries required to the publish directory.
 
-- **Csproj**: When a file is built it will check for a `.csproj` in the file or parents directory, and build that. Then it will publish the required packages to the publish directory.
+- **Csproj**: When a file is built it will check for a `.csproj` in the file or parents directory, and build that. Then it will publish the required packages to the publish directory using the csproj.publish configuration. Alternatively, with the dllcopy configuration, it can directly copy the built DLL to specified target directories (this feature is disabled in compatibility mode).
 
 Notes:
 - if a new CMakeLists.txt it will reindex automatically since checking every times is costly, you have to manually delete `.fastbuild/_Tmp/CMakeCache.json` to force it.
@@ -56,6 +56,9 @@ In the base of your source code directory it should be a directory called `.fast
             "Files": [ ], // list of files in .fastbuild needed to execute the command, if there is a file with .template on its name {{PACKAGE}} will be replaced with the name of the assembly to publish
             "Command": "" // command executed to publish, {{ROOT_DIRECTORY}} is the directory where .fastbuild is, {{RUNTIME_IDENTIFIER}} for corresponding one of the running machine
         }
+    },
+    "dllcopy": {
+        "Targets": [ ] // list of directories where to directly copy the built DLL after build (new feature, disabled in compatibility mode)
     }
 }
 ```
@@ -64,5 +67,5 @@ In the base of your source code directory it should be a directory called `.fast
 
 The extension provides the following settings that can be configured in VS Code's settings (File > Preferences > Settings):
 
-- `fastbuild.useCompatibilityMode` (boolean, default: false): Enable compatibility mode to revert to behaviors from before the last two commits. When enabled, it disables MSBuild performance optimizations, simplified DLL copy functionality, and reverts path-finding logic to the old behavior.
+- `fastbuild.useCompatibilityMode` (boolean, default: false): Enable compatibility mode to revert to behaviors from before the last two commits. When enabled, it disables MSBuild performance optimizations, simplified DLL copy functionality, and reverts path-finding logic to the old behavior. In compatibility mode, DLL copying falls back to using the csproj.publish configuration if available.
 
