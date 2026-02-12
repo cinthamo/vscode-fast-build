@@ -158,7 +158,7 @@ public static class CsprojProcessor
             }
 
             // Recursively process the referenced .csproj
-            var projectReferences = parsedCsproj.Descendants(parsedCsproj.Root!.GetDefaultNamespace().GetName("ProjectReference"));
+            var projectReferences = parsedCsproj.Descendants(parsedCsproj.Root!.GetDefaultNamespace().GetName("ProjectReference")).ToList();
 
             foreach (var projectReference in projectReferences)
             {
@@ -172,15 +172,42 @@ public static class CsprojProcessor
 
                     string referencedCsprojPath = Path.GetFullPath(Path.Combine(projectDir, projectReferencePath));
                     string referencedFastBuildCsprojPath = referencedCsprojPath.Replace(".csproj", ".fastbuild.csproj");
-                    projectReference.SetAttributeValue("Include", referencedFastBuildCsprojPath);
 
-                    if (File.Exists(referencedCsprojPath) && !processedFiles.Contains(referencedCsprojPath))
+                    if (File.Exists(referencedCsprojPath))
                     {
-                        await CreateCsprojFastBuildFileAsync(referencedCsprojPath, processedFiles, fastbuildSdkDirectory, referencedFastBuildCsprojPath, globalJsonPath, globalJsonSdkVersions, false, replacements, compatibilityMode);
-                    }
-                    else if (processedFiles.Contains(referencedCsprojPath))
-                    {
-                        ShowDebugMessage($"Skipping already processed reference: {referencedCsprojPath}");
+                        if (processedFiles.Contains(referencedCsprojPath))
+                        {
+                            ShowDebugMessage($"Skipping already processed reference: {referencedCsprojPath}");
+                        }
+                        else
+                        {
+                            if (compatibilityMode)
+                            {
+                                projectReference.SetAttributeValue("Include", referencedFastBuildCsprojPath);
+                                await CreateCsprojFastBuildFileAsync(referencedCsprojPath, processedFiles, fastbuildSdkDirectory, referencedFastBuildCsprojPath, globalJsonPath, globalJsonSdkVersions, false, replacements, compatibilityMode);
+                            }
+                            else
+                            {
+                                string referencedProjectName = Path.GetFileNameWithoutExtension(referencedCsprojPath);
+                                string referencedProjectDir = Path.GetDirectoryName(referencedCsprojPath)!;
+                                string dllPath = Path.Combine(referencedProjectDir, "bin", "Debug", $"{referencedProjectName}.dll");
+                                if (File.Exists(dllPath))
+                                {
+                                    string referencedDummyCsprojPath = referencedCsprojPath.Replace(".csproj", ".dummy.fastbuild.csproj");
+                                    if (!File.Exists(referencedDummyCsprojPath))
+                                    {
+                                        await CreateStubFastBuildFileAsync(referencedCsprojPath, fastbuildSdkDirectory, referencedDummyCsprojPath, dllPath, replacements);
+                                    }
+                                    projectReference.SetAttributeValue("Include", referencedDummyCsprojPath);
+                                    processedFiles.Add(referencedCsprojPath);
+                                }
+                                else
+                                {
+                                    projectReference.SetAttributeValue("Include", referencedFastBuildCsprojPath);
+                                    await CreateCsprojFastBuildFileAsync(referencedCsprojPath, processedFiles, fastbuildSdkDirectory, referencedFastBuildCsprojPath, globalJsonPath, globalJsonSdkVersions, false, replacements, compatibilityMode);
+                                }
+                            }
+                        }
                     }
                     else
                     {
@@ -292,5 +319,30 @@ public static class CsprojProcessor
                 break; // Remove only the first occurrence
             }
         }
+    }
+
+    private static async Task CreateStubFastBuildFileAsync(string referencedCsprojPath, string fastbuildSdkDirectory, string referencedFastBuildCsprojPath, string dllPath, IList<Tuple<string, string>> replacements)
+    {
+        string csprojContent = await File.ReadAllTextAsync(referencedCsprojPath);
+        XDocument parsedCsproj = XDocument.Parse(csprojContent);
+        string projectName = Path.GetFileNameWithoutExtension(referencedCsprojPath);
+        string assemblyName = GetProperty(parsedCsproj, "AssemblyName") ?? projectName;
+        string targetFramework = GetProperty(parsedCsproj, "TargetFramework") ?? "net8.0";
+
+        string outputDir = Path.GetDirectoryName(dllPath)!;
+        string stubContent = $@"<Project Sdk=""Microsoft.NET.Sdk"">
+  <PropertyGroup>
+    <TargetFramework>{targetFramework}</TargetFramework>
+    <AssemblyName>{assemblyName}</AssemblyName>
+    <OutputPath>{outputDir}</OutputPath>
+    <IntermediateOutputPath>.fastbuild/obj</IntermediateOutputPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Remove=""**/*.cs"" />
+  </ItemGroup>
+</Project>";
+
+        await File.WriteAllTextAsync(referencedFastBuildCsprojPath, stubContent);
+        ShowInformationMessage($"Stub FastBuild file created: {referencedFastBuildCsprojPath}");
     }
 }
