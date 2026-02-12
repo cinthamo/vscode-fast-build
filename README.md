@@ -59,3 +59,10 @@ In the base of your source code directory it should be a directory called `.fast
     }
 }
 ```
+
+## VS Code Settings
+
+The extension provides the following settings that can be configured in VS Code's settings (File > Preferences > Settings):
+
+- `fastbuild.useCompatibilityMode` (boolean, default: false): Enable compatibility mode to revert to behaviors from before the last two commits. When enabled, it disables MSBuild performance optimizations, simplified DLL copy functionality, and reverts path-finding logic to the old behavior.
+
