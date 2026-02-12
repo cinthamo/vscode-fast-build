@@ -27,6 +27,11 @@ public static class FastBuildMain
             public CommandConfig? Publish { get; set; }
         }
 
+        public class DllcopyConfig
+        {
+            public List<string> Targets { get; set; } = [];
+        }
+
         public class CsprojConfig
         {
             public CommandConfig? Check { get; set; }
@@ -35,6 +40,7 @@ public static class FastBuildMain
 
         public CMakeConfig? CMake { get; set; }
         public CsprojConfig? Csproj { get; set; }
+        public DllcopyConfig? Dllcopy { get; set; }
     }
 
     public static async Task ProcessAsync(string path)
@@ -87,7 +93,7 @@ public static class FastBuildMain
                 return;
         }
 
-        await BuildAndPublishCsproj(config.Csproj, path, fastBuildDirectory);
+        await BuildAndPublishCsproj(config, path, fastBuildDirectory);
     }
 
     private static async Task<bool> BuildAndPublishCMake(Config.CMakeConfig? config, string path, string fastBuildDirectory)
@@ -211,18 +217,11 @@ public static class FastBuildMain
         return true;
     }
 
-    private static async Task<bool> BuildAndPublishCsproj(Config.CsprojConfig? config, string path, string fastBuildDirectory)
+    private static async Task<bool> BuildAndPublishCsproj(Config config, string path, string fastBuildDirectory)
     {
-        if (config?.Publish == null)
+        if (config.Dllcopy == null && config.Csproj?.Publish == null)
         {
-            ShowErrorMessage("Csproj Publish configuration not found in config.json.");
-            return false;
-        }
-
-        var publishCommand = config.Publish.Command;
-        if (string.IsNullOrEmpty(publishCommand))
-        {
-            ShowErrorMessage("Command to publish csproj not found in config.json.");
+            ShowErrorMessage("Csproj Publish or Dllcopy configuration not found in config.json.");
             return false;
         }
 
@@ -235,8 +234,8 @@ public static class FastBuildMain
         
         ShowInformationMessage($"Found file: {csprojPath}.");
 
-        var checkCommand = config.Check?.Command;
-        if (!string.IsNullOrEmpty(checkCommand) && !await BuildManager.CheckCsproj(checkCommand, config.Check?.Files ?? [], fastBuildDirectory))
+        var checkCommand = config.Csproj?.Check?.Command;
+        if (!string.IsNullOrEmpty(checkCommand) && !await BuildManager.CheckCsproj(checkCommand, config.Csproj?.Check?.Files ?? [], fastBuildDirectory))
             return false;
 
         ShowInformationMessage("Creating FastBuild projects...");
@@ -245,7 +244,7 @@ public static class FastBuildMain
         var (fastbuildCsprojPath, packageId, anyCsprojChanged) = await CsprojProcessor.CreateCsprojFastBuildFileAsync(csprojPath, [
             new Tuple<string, string>("$(GeneXusWorkingCopy)", rootDirectory) // TODO: don't hardcode this GeneXusWorkingCopy
         ]);
-        
+
         if (string.IsNullOrEmpty(fastbuildCsprojPath))
         {
             ShowErrorMessage("Failed to create .fastbuild.csproj file.");
@@ -262,8 +261,35 @@ public static class FastBuildMain
         if (!await BuildManager.BuildCsproj(fastbuildCsprojPath, anyCsprojChanged))
             return false;
 
-        ShowInformationMessage($"Publishing: {packageId}...");
-        return await BuildManager.PublishCsproj(publishCommand, config.Publish.Files, fastBuildDirectory, packageId);
+        ShowDebugMessage($"Dllcopy config: {config.Dllcopy != null}");
+        if (config.Dllcopy != null && config.Dllcopy.Targets.Any())
+        {
+            string binDir = Path.Combine(Path.GetDirectoryName(csprojPath)!, "bin", "Debug");
+            string sourceDll = Path.Combine(binDir, packageId + ".dll");
+            foreach (string target in config.Dllcopy.Targets)
+            {
+                string dest = Path.Combine(target, packageId + ".dll");
+                if (File.Exists(sourceDll))
+                {
+                    Directory.CreateDirectory(target);
+                    File.Copy(sourceDll, dest, true);
+                    ShowInformationMessage($"Copied {packageId}.dll to {target}");
+                }
+                else
+                {
+                    ShowErrorMessage($"Source DLL not found: {sourceDll}");
+                }
+            }
+            return true;
+        }
+        else if (config.Csproj?.Publish != null && !string.IsNullOrEmpty(config.Csproj.Publish.Command))
+        {
+            ShowInformationMessage($"Publishing: {packageId}...");
+            return await BuildManager.PublishCsproj(config.Csproj.Publish.Command, config.Csproj.Publish.Files, fastBuildDirectory, packageId);
+        }
+
+        ShowInformationMessage("No publish or dllcopy configuration found.");
+        return true;
     }
 
     private static JsonSerializerOptions JsonSerializerOptionsIgnoreCase => new()

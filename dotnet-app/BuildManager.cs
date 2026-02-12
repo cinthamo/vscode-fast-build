@@ -150,10 +150,11 @@ public static class BuildManager
         return await CopyFilesAndRun(command, files, fastBuildDirectory, []);
     }
 
-    public static async Task<bool> PublishCsproj(string command, List<string> files, string fastBuildDirectory, string assemblyName)
+    public static async Task<bool> PublishCsproj(string command, List<string> files, string fastBuildDirectory, string assemblyName, IList<Tuple<string, string>>? extraReplacements = null)
     {
-        return await CopyFilesAndRun(command, files, fastBuildDirectory, [
-            new Tuple<string, string>("{{PACKAGE}}", assemblyName)
-        ]);
+        var replacements = new List<Tuple<string, string>> { new Tuple<string, string>("{{PACKAGE}}", assemblyName) };
+        if (extraReplacements != null)
+            replacements.AddRange(extraReplacements);
+        return await CopyFilesAndRun(command, files, fastBuildDirectory, replacements);
     }
 }
