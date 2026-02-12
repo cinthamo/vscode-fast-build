@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Text.Json;
 using System.Xml.Linq;
 using static OutputHandler;
@@ -12,8 +13,8 @@ public static class CsprojProcessor
     /// <param name="csprojPath">The path to the .csproj file.</param>
     /// <param name="replacements">Variables to replace</param>
     /// <param name="compatibilityMode">Whether to use compatibility mode (skip optimizations).</param>
-    /// <returns>A tuple containing the path to the .fastbuild.csproj file, the PackageId, and a boolean indicating whether the file was created or updated.</returns>
-    public static async Task<(string?, string?, bool)> CreateCsprojFastBuildFileAsync(string csprojPath, IList<Tuple<string, string>> replacements, bool compatibilityMode)
+    /// <returns>A tuple containing the path to the .fastbuild.csproj file, the PackageId, a boolean indicating whether the file was updated, and a boolean indicating whether dependencies changed.</returns>
+    public static async Task<(string?, string?, bool, bool)> CreateCsprojFastBuildFileAsync(string csprojPath, IList<Tuple<string, string>> replacements, bool compatibilityMode)
     {
         string fastbuildSdkDirectory = Path.Combine(PathFinder.FindFastBuildDirectory(csprojPath)!, "_Sdk");
         Directory.CreateDirectory(fastbuildSdkDirectory);
@@ -35,17 +36,17 @@ public static class CsprojProcessor
             }
         }
 
-        var (packageId, wasChanged) = await CreateCsprojFastBuildFileAsync(csprojPath, new HashSet<string>(), fastbuildSdkDirectory, fastbuildCsprojFile, globalJsonPath, globalJsonSdkVersions, false, replacements, compatibilityMode);
-        return (fastbuildCsprojFile, packageId, wasChanged);
+        var (packageId, fileUpdated, depChanged) = await CreateCsprojFastBuildFileAsync(csprojPath, new HashSet<string>(), fastbuildSdkDirectory, fastbuildCsprojFile, globalJsonPath, globalJsonSdkVersions, false, replacements, compatibilityMode);
+        return (fastbuildCsprojFile, packageId, fileUpdated, depChanged);
     }
 
-    private static async Task<(string?, bool)> CreateCsprojFastBuildFileAsync(string csprojPath, HashSet<string> processedFiles, string fastbuildSdkDirectory, string fastbuildCsprojFile, string? globalJsonPath, IDictionary<string, string>? globalJsonSdkVersions, bool isSdk, IList<Tuple<string, string>> replacements, bool compatibilityMode)
+    private static async Task<(string?, bool, bool)> CreateCsprojFastBuildFileAsync(string csprojPath, HashSet<string> processedFiles, string fastbuildSdkDirectory, string fastbuildCsprojFile, string? globalJsonPath, IDictionary<string, string>? globalJsonSdkVersions, bool isSdk, IList<Tuple<string, string>> replacements, bool compatibilityMode)
     {
         // Check if the file has already been processed
         if (processedFiles.Contains(csprojPath))
         {
             ShowDebugMessage($"Skipping already processed file: {csprojPath}");
-            return (null, false);
+            return (null, false, false);
         }
 
         // Add the file to the processed set
@@ -188,19 +189,40 @@ public static class CsprojProcessor
                 }
             }
 
+            // Check if PackageReference changed between new and previous .fastbuild.csproj
+            string newContent = parsedCsproj.ToString();
+            bool anyDependencyChanged = !File.Exists(fastbuildCsprojFile);
+            if (!anyDependencyChanged)
+            {
+                string existingContent = await File.ReadAllTextAsync(fastbuildCsprojFile);
+                var existingPackages = getPackagesAndVersion(existingContent);
+                var newPackages = getPackagesAndVersion(newContent);
+                anyDependencyChanged = !newPackages.SequenceEqual(existingPackages);
+            }
+
             if (shouldFastBuildFileBeCreatedOrUpdated)
             {
                 // Save the updated .fastbuild.csproj file
-                await File.WriteAllTextAsync(fastbuildCsprojFile, parsedCsproj.ToString());
+                await File.WriteAllTextAsync(fastbuildCsprojFile, newContent);
                 ShowInformationMessage($"File has been saved to {fastbuildCsprojFile}");
             }
 
-            return (packageId, shouldFastBuildFileBeCreatedOrUpdated);
+            return (packageId, shouldFastBuildFileBeCreatedOrUpdated, anyDependencyChanged);
         }
         catch (Exception ex)
         {
             ShowErrorMessage($"Processing the .csproj file: {ex.Message}");
-            return (null, false);
+            return (null, false, false);
+        }
+
+        List<string> getPackagesAndVersion(string csprojContent)
+        {
+            XDocument doc = XDocument.Parse(csprojContent);
+            var ns = doc.Root!.GetDefaultNamespace();
+            return doc.Descendants(ns.GetName("PackageReference"))
+                .Select(pr => $"{pr.Attribute("Include")?.Value ?? ""}@{pr.Attribute("Version")?.Value ?? pr.Element(ns.GetName("Version"))?.Value ?? ""}")
+                .OrderBy(s => s)
+                .ToList();
         }
     }
 

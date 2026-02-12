@@ -1,5 +1,9 @@
 # Building
 
+To build the app use only
+
+`dotnet build dotnet-app/FastBuild.csproj`
+
 To build the extension use
 
 `nvm use 20.17.0`

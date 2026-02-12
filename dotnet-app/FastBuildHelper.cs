@@ -243,7 +243,7 @@ public static class FastBuildMain
         ShowInformationMessage("Creating FastBuild projects...");
 
         string rootDirectory = Path.GetDirectoryName(fastBuildDirectory) ?? throw new ArgumentNullException(nameof(fastBuildDirectory));
-        var (fastbuildCsprojPath, packageId, anyCsprojChanged) = await CsprojProcessor.CreateCsprojFastBuildFileAsync(csprojPath, [
+        var (fastbuildCsprojPath, packageId, fileUpdated, anyDependencyChanged) = await CsprojProcessor.CreateCsprojFastBuildFileAsync(csprojPath, [
             new Tuple<string, string>("$(GeneXusWorkingCopy)", rootDirectory) // TODO: don't hardcode this GeneXusWorkingCopy
         ], compatibilityMode);
 
@@ -260,7 +260,7 @@ public static class FastBuildMain
         }
 
         ShowInformationMessage($"Building: {fastbuildCsprojPath}...");
-        if (!await BuildManager.BuildCsproj(fastbuildCsprojPath, anyCsprojChanged))
+        if (!await BuildManager.BuildCsproj(fastbuildCsprojPath, anyDependencyChanged, compatibilityMode))
             return false;
 
         ShowDebugMessage($"Dllcopy config: {config.Dllcopy != null}, compatibilityMode: {compatibilityMode}");
